@@ -1,10 +1,16 @@
 {
   "mcpServers": {
     "music_player": {
+      "isActive":true,
       "command": "python",
       "args": [
         "../server/mplayer/main.py"
       ]
-    }
+    },
+    "amap-maps": {
+      "isActive":true,
+      "type": "sse",
+      "url": "https://mcp.api-inference.modelscope.cn/sse/xxx"
+      }
   }
 }
