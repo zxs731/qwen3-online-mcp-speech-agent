@@ -7,7 +7,7 @@ import os
 from typing import Optional
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
-
+from mcp.client.sse import sse_client
 from openai import AsyncOpenAI
 
 
@@ -139,32 +139,33 @@ class MCPClient:
             print(config["mcpServers"])  
         conf=config["mcpServers"]
         print(conf.keys())
-        for key in conf.keys():
-            v = conf[key]
-            command = v['command']
-            args=v['args']
-            print(command)
-            print(args)
-            server_params = StdioServerParameters(
-                command=command,
-                args=args,
-                env=None
-            )
-            
-            stdio_transport = await self.exit_stack.enter_async_context(stdio_client(server_params))
-            stdio1, write1 = stdio_transport
-            session = await self.exit_stack.enter_async_context(ClientSession(stdio1, write1))
-            
-            await session.initialize()
-            
-            # 列出可用工具
-            response = await session.list_tools()
-            tools = response.tools
-            print("\nConnected to server with tools:", [tool.name for tool in tools])
-            for tool in tools:
-                self.sessions[tool.name]=session
-            self.tools=self.tools+tools
-            print(self.sessions)
+        for key in conf.keys():  
+            v = conf[key]  
+            print(v)
+            session = None  
+            if "url" in v and v['isActive'] and "type" in v and  v["type"]=="sse":  
+                server_url = v['url']  
+                sse_transport = await self.exit_stack.enter_async_context(sse_client(server_url))  
+                write, read = sse_transport  
+                session = await self.exit_stack.enter_async_context(ClientSession(write, read))  
+            elif "command" in v and v['isActive']:  
+                command = v['command']  
+                args = v['args']  
+                server_params = StdioServerParameters(command=command, args=args, env=None)  
+                stdio_transport = await self.exit_stack.enter_async_context(stdio_client(server_params))  
+                stdio1, write1 = stdio_transport  
+                session = await self.exit_stack.enter_async_context(ClientSession(stdio1, write1))  
+  
+            if session:  
+                await session.initialize()  
+                response = await session.list_tools()  
+                tools = response.tools  
+                for tool in tools:  
+                    self.sessions[tool.name] = session  
+                self.tools += tools  
+        self.is_connected = True
+        print("tools loaded!")
+        print("MCPClient connected to server!")
 
     async def process_query(self, query: str) -> str:
         """使用 LLM 和 MCP 服务器提供的工具处理查询"""
